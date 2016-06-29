@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Migration Pattern</title>
+<script type="text/javascript" src ="d3.min.js"></script>
+<script src="amcharts/amcharts.js" type="text/javascript"></script>
+<script src="amcharts/serial.js" type="text/javascript"></script>
+</head>
+ <style type="text/css">
+			#title {
+				text-align: center;
+				font-family: Impact, Charcoal, sans-serif;
+				font-size: 40px;
+			}
+            
+            body{
+                background: url(data/world1.gif);
+                background-size: 100% 100%;
+                background-repeat: no-repeat;
+            }
+        
+            div.tooltip {
+			       position: absolute;
+                    width: auto;
+                    height: auto;
+                    padding: 10px;
+                    background-color: #00001a;
+                    border:1px solid black;
+                    -webkit-border-radius: 10px;
+                    -moz-border-radius: 10px;
+                    border-radius: 10px;
+                    -webkit-box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+                    -moz-box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+                    box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+                    
+                    font-family: 'Lucida Bright', Georgia, serif;
+                    display: none;
+                    line-height: 20px;        
+                    color: white;
+                    opacity: 0.9;
+			}
+
+			div.tooltip.hidden {
+			        display: none;
+                     position: relative;
+			}
+
+	
+            #map{
+              
+                left:0px;
+                bottom:0px;
+
+                                  
+            }
+            #m-text{
+                font-family:sans-serif;
+                font-size: 18px;
+                left:0px;
+                top:20px;
+                text-align: justify;
+
+            }
+            #chartdiv1 {
+                right: 10px;
+                position: absolute;
+                border:2px solid black;
+                top: 180px;
+             }
+              
+
+        </style>
+<body>
+<div id = "title">Multi-Granularity Visual Models of Geographic Mobility </div>
+
+<div id ="m-text" style ="width: 48%; height = 30%;"><p>Senegal is a country in West Africa whose capital is Dakar. It covers a land area of 197,000 square kilometers (76,000 sq. mile). In 2013 the population was 14,221,041 among which 6,973,653 was male and 7,247,388 was female. The country has been subdivided into 123 arrondissements. </p></div>
+<p><div id="chartdiv1" style="width: 50%; height: 50%; "></div></p>
+
+
+<script>
+var tooltip =d3.select("body").append("div").attr("class","tooltip")
+var jsond = 0;
+            //Width and height
+            var w =700,
+             h = 600;
+            var color = d3.scale.linear()
+                    .range(['#ffffe0', '#fff2c7']);
+                
+                  
+
+            var map = d3.select("body")
+                        .append("svg")
+                        .attr("width", w)
+                        .attr("height", h)
+                        .attr("id","map");
+               
+
+            var projection = d3.geo.transverseMercator()
+                                .center([-14,14.5])
+                                .translate([w/2, h/2])
+                                .scale(6000)
+
+
+
+            var path = d3.geo.path()
+                 .projection(projection);
+
+
+            var setNormalColor = function(d)
+            {
+                //Get data value
+                  var value = d.properties.value;
+
+
+                    if (value) {
+                            //If value exists…
+                            return color(value);
+                    } else {
+                           console.log(value)
+                            return "white";
+                    }
+            }
+          
+
+            d3.json("data/senegal.geojson", function(json) {
+
+                d3.csv("data/total.CSV", function(data)
+                {
+
+                    color.domain([
+                        d3.min(data, function(d) { return d.January; }),
+                        d3.max(data, function(d) { return d.January; })
+                        ]);
+
+                    console.log(data.length);
+                    for (var i = 0; i < data.length; i++)
+                    {
+                        var dataState = data[i].ARR;
+                        var dataValue = parseInt(data[i].January);
+						var dataID =data[i].ARR_ID;
+
+                         //Find the corresponding state inside the GeoJSON
+                        for (var j = 0; j < json.features.length; j++)
+                        {
+                            var jsonState = json.features[j].properties.ARR;
+                            var jsonID =json.features[j].properties.ARR_ID;
+                            //console.log(jsonState)
+
+                            if (dataID == jsonID) {
+
+                                //Copy the data value into the JSON
+                                json.features[j].properties.value = dataValue;
+								json.features[j].properties.Aid = dataID;
+                                //Stop looking through the JSON
+                                break;
+                            }
+                        }
+                    }
+                   
+                        console.log(dataID);
+                            map.selectAll("path")
+                               .data(json.features)
+                               .enter()
+                               .append("path")
+                               .attr("d", path)
+                               .style("fill", setNormalColor)
+                               .style("stroke", "rgb(0,0,0)")
+                               .on("mouseover",showTooltip)
+                                .on("mousemove",moveTooltip)
+                                .on("mouseout",hideTooltip)
+                                .on("click",clicked);
+
+                });
+
+                    // on click change the graph value
+                    function clicked(d) {
+                       //alert(d.properties.Aid);
+                        visualizeChart1(d.properties.Aid);
+                       // visualizeChart2(d.properties.Aid);
+                        
+                      
+
+                    }
+
+
+                    //Update map on zoom/pan
+                    function zoomed() {
+                      features.attr("transform", "translate(" + zoom.translate() + ")scale(" + zoom.scale() + ")")
+                          .selectAll("path").style("stroke-width", 1 / zoom.scale() + "px" );
+                    }
+
+
+                    //Position of the tooltip relative to the cursor
+                    var tooltipOffset = {x: 5, y: -25};
+
+                    //Create a tooltip, hidden at the start
+                    function showTooltip(d) {
+                      moveTooltip();
+                      d3.select(this)
+                        .style("fill", "blue");
+                      tooltip.style("display","block")
+                          .html( "<b>"+ d.properties.ARR +"</b>" + "<br/> " + "Population : " + d.properties.value)
+                         
+                    }
+
+                    //Move the tooltip to track the mouse
+                    function moveTooltip() {
+                      tooltip.style("top",(d3.event.pageY+tooltipOffset.y)+"px")
+                          .style("left",(d3.event.pageX+tooltipOffset.x)+"px");
+                    }
+
+                    //Create a tooltip, hidden at the start
+                    function hideTooltip(d) {
+                       d3.select(this)
+                        .style("fill", setNormalColor(d))
+                      tooltip.style("display","none");
+                    }
+
+
+
+
+
+// amchart line graph
+visualizeChart1(1);
+var chartData1;
+var chart1;
+
+function visualizeChart1(tractID){
+function configChart() {
+    // SERIAL CHART
+    chartData1 =[];
+    chart1 = new AmCharts.AmSerialChart();
+    chart1.dataProvider = chartData1;
+    chart1.categoryField = "Days";
+    chart1.startDuration = 1;
+    chart1.angle = 30;
+    
+    
+
+
+    // AXES
+    // category
+    var categoryAxis = chart1.categoryAxis;
+    categoryAxis.labelRotation = 90;
+    categoryAxis.autoGridCount  = false;
+    categoryAxis.gridCount = 12;                    
+    categoryAxis.gridPosition = "start";
+    categoryAxis.title ="Population in January";
+   
+
+
+    
+
+    // GRAPH
+    var graph= new AmCharts.AmGraph();
+    graph.valueField = "popl";
+    graph.balloonText = "[[category]]: <b>[[value]]</b>";
+    graph.type ="line";
+    graph.fillAlphas = 0;
+	graph.bullet = "round";
+	graph.lineColor = "#F21616";
+    chart1.addGraph(graph);
+    chart1.write("chartdiv1");
+
+
+
+    var dataFile = "data/out/log" + tractID + ".csv";
+    loadCSV(dataFile);
+   //loadCSV("join_out/log1.csv");
+
+};
+if (AmCharts.isReady) {
+      configChart();
+    } else {
+      AmCharts.ready(configChart);
+    }
+}
+
+
+ function loadCSV(file) {
+                if (window.XMLHttpRequest) {
+                  
+                    var request = new XMLHttpRequest();
+                } else {
+                
+                    var request = new ActiveXObject('Microsoft.XMLHTTP');
+                }
+                
+                request.open('GET', file, false);
+                request.send();
+                parseCSV(request.responseText);
+            }
+
+            function parseCSV(data) {
+               
+                //split into rows
+                var rows = data.split("\n");
+
+                // loop through all rows
+                for (var i = 0; i < rows.length; i++) {
+                    // this line helps to skip empty rows
+                    if (rows[i]) {
+                        // our columns are separated by comma
+                        var column = rows[i].split(",");
+
+                        // column is array now
+                        // first item is date
+                        var Days = column[0];
+                        // second item is value of the second column
+                        var popl = column[1]
+						
+						
+
+                        // create object which contains all these items:
+                        var dataObject = {
+                            Days: Days,
+                            popl: popl,
+							
+                        };
+                        // add object to chartData array
+                        chartData1.push(dataObject);
+                    }
+                }
+                chart1.validateData();
+            }
+
+
+})
+        </script>
+
+    </body>
+</html>          
+            
+</script>
+
+
+</body>
+
+</html>
